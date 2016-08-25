@@ -1,7 +1,9 @@
 # thebasketcase
-
-- pcap dump all headers for traffic from/to basket2 box = most generic
-- we want a docker container that starts TB with a given padding, dumps all traffic in a pcap, and sends it away
++ pcap dump all headers for traffic from/to basket2 box = most generic
+- we want a docker container that starts TB with a given padding, dumps all
+traffic in a pcap, and sends it away
+- split gatherserver and basket2 server into two docker containers
+- basket2 server should be isolated by IP from the gatherserver
 
 
 # getting overhead

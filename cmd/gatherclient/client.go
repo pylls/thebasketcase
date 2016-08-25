@@ -1,5 +1,0 @@
-/*
-FIXME
-*/
-package main
-
