@@ -31,11 +31,11 @@ type item struct {
 }
 
 var (
-	timeout = flag.Int("t", 15, "the timeout (seconds) for each sample load")
-	samples = flag.Int("s", 1, "the number of samples to get for each page")
+	timeout = flag.Int("t", 60, "the timeout (seconds) for collecting a sample")
+	samples = flag.Int("s", 1, "the number of samples to get for each site")
 	datadir = flag.String("f", "data", "the folder to store results in")
 	scheme  = flag.String("scheme", "http",
-		"the scheme for pages where not specified")
+		"the scheme for sites where not specified")
 	minDataLen = flag.Int("m", 25,
 		"the minimum number of bytes to accept as data from a client")
 	outputSuffix = flag.String("o", ".pcap", "the suffix for the output files")

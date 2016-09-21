@@ -1,7 +1,0 @@
-ORPort 9001
-BridgeRelay 1
-ExtORPort auto
-PublishServerDescriptor 0
-ServerTransportPlugin basket2 exec /opt/basket2/basket2proxy -enableLogging=true -logLevel DEBUG -paddingMethods TamarawBulk,Tamaraw,Obfs4PacketIAT,Obfs4BurstIAT,Obfs4Burst,Null
-ServerTransportListenAddr basket2 0.0.0.0:11111
-Log notice file /var/log/tor/log
