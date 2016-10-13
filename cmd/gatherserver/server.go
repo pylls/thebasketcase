@@ -63,7 +63,6 @@ func (s *server) Work(c context.Context,
 	}
 
 	i := <-work
-	log.Printf("handing out work URL %s", i.URL)
 	return &model.Browse{
 		ID:      i.ID,
 		URL:     i.URL,
