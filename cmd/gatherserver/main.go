@@ -36,7 +36,7 @@ var (
 	datadir = flag.String("f", "data", "the folder to store results in")
 	scheme  = flag.String("scheme", "http",
 		"the scheme for sites where not specified")
-	minDataLen = flag.Int("m", 25,
+	minDataLen = flag.Int("m", 100,
 		"the minimum number of bytes to accept as data from a client")
 	outputSuffix = flag.String("o", ".pcap", "the suffix for the output files")
 

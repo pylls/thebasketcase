@@ -36,13 +36,15 @@ func (s *server) Work(c context.Context,
 			}
 
 		} else { // too little data, put back
-			// put back work, toggling "www." prefix: this helps us to reach
-			// sites that for some reason only is accessible with/without www
+			// put back work, toggling "www.": this helps us to reach
+			// sites that for some reason only is accessible with/without www,
+			// like www.googleusercontent.com listed as googleusercontent.com
+			// in Alexa top-1m.
 			url := in.Browse.URL
-			if strings.HasPrefix(url, "www.") {
-				url = url[4:]
+			if strings.Contains(url, "www.") {
+				url = strings.Replace(url, "www.", "", 1)
 			} else {
-				url = "www." + url
+				url = strings.Replace(url, "://", "://www.", 1)
 			}
 
 			work <- item{ // this overwrites what we have
@@ -61,6 +63,7 @@ func (s *server) Work(c context.Context,
 	}
 
 	i := <-work
+	log.Printf("handing out work URL %s", i.URL)
 	return &model.Browse{
 		ID:      i.ID,
 		URL:     i.URL,
