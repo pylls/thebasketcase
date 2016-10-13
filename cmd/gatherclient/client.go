@@ -33,7 +33,7 @@ var (
 	display = flag.String("display", "-screen 0 1024x768x24",
 		"the xvfb display to use")
 	nic     = flag.String("nic", "eth0", "the NIC to listen on for traffic")
-	snaplen = flag.Int("snaplen", 128, "the snaplen to capture")
+	snaplen = flag.Int("snaplen", 58, "the snaplen to capture")
 
 	tmpDir         = path.Join(os.TempDir(), "hotexp")
 	browser        = path.Join(tmpDir, "browser")
@@ -41,10 +41,14 @@ var (
 	dataTorDir     = "Browser/TorBrowser/Data/Tor"
 	okTorData      = []string{"torrc",
 		"geoip",
+		"cached-descript",
 		"cached-microdesc",
 		"cached-certs"}
-	pcapData bytes.Buffer
-	serverIP = ""
+	pcapData       bytes.Buffer
+	serverIP       = ""
+	warmupSite     = "https://www.kau.se"
+	redirectFormat = "<meta http-equiv=\"refresh\" content=\"%d; url=%s\" />"
+	redirectDelay  = 10
 )
 
 func main() {
@@ -107,7 +111,14 @@ func main() {
 	work.Browse = &model.Browse{
 		ID: "",
 	}
+
+	var lastWarmup time.Time
 	for {
+		if time.Now().Sub(lastWarmup).Hours() >= 1 {
+			log.Printf("warmup visit to %s", warmupSite)
+			warmup(sampleChan)
+			lastWarmup = time.Now()
+		}
 
 		// report and get work
 		browse, err := client.Work(context.Background(), work)
@@ -138,9 +149,17 @@ func browseTB(url string, seconds int,
 	for i := 0; i < *attempts; i++ { // because our xvfb+timeout+TB fails at times
 		err = nil
 		time.Sleep(1 * time.Second)
-		sampleChan <- true // overwrites pcap
 
 		err = clean()
+		if err != nil {
+			log.Printf("%s", err)
+			continue
+		}
+
+		// create redirect file
+		redirectFile := path.Join(browser, "Browser", "redirect.html")
+		err = ioutil.WriteFile(redirectFile,
+			[]byte(fmt.Sprintf(redirectFormat, redirectDelay, url)), 0666)
 		if err != nil {
 			log.Printf("%s", err)
 			continue
@@ -150,13 +169,21 @@ func browseTB(url string, seconds int,
 			"timeout", "-s", "9", // kill (no need to play nice) after
 			strconv.Itoa(seconds),                              // seconds
 			path.Join(browser, "Browser", "start-tor-browser"), // Tor Browser
-			"--debug", url) // that visits a specific URL
+			"--debug", redirectFile) // that visits a specific URL through redirect
 		var stdout bytes.Buffer
 		var stderr bytes.Buffer
 		tb.Stdout = &stdout
 		tb.Stderr = &stderr
 
-		// fills stdout and stderr
+		go func() {
+			// overwrite the pcap after the redirect duration, hoping that most of
+			// the "noise" relating to circuit construction and whatnot is done by
+			// then (note that running TB takes non-zero time, so we have margin)
+			time.Sleep(time.Duration(redirectDelay) * time.Second)
+			sampleChan <- true // overwrites pcap
+		}()
+
+		// run TB (blocking), filling stdout and stderr
 		tb.Run()
 
 		// wait for killing TB and any lagging data
@@ -169,10 +196,19 @@ func browseTB(url string, seconds int,
 			continue
 		}
 
-		// we got data, return the raw _pcap_ data
+		// we got data, return the raw _pcap_ data, not torlog in stdout, since
+		// we're interested in how it looks on the wire with PT defenses, not
+		// without defenses in stdout
 		return pcapData.Bytes(), nil
 	}
 	return nil, fmt.Errorf("failed to browse")
+}
+
+func warmup(sampleChan chan bool) {
+	_, err := browseTB(warmupSite, 60, sampleChan)
+	if err != nil {
+		log.Fatalf("failed to warmup browse (%s)", err)
+	}
 }
 
 func clean() (err error) {
@@ -217,9 +253,11 @@ func clean() (err error) {
 }
 
 func gotData(in bytes.Buffer) bool {
-	domain := false
-	begin := false
-	bootstrapped := false
+	// we got data if:
+	bootstrapped := false // we bootstrapped,
+	begin := false        // began sending outgoing data, and
+	domain := false       // successfully resolved at least one domain
+
 	scanner := bufio.NewScanner(bytes.NewReader(in.Bytes()))
 	for scanner.Scan() {
 		tokens := strings.Split(scanner.Text(), " ")
@@ -253,7 +291,8 @@ func collectNetwork(pChan chan gopacket.Packet, sampleChan chan bool) {
 			// truncate pcap-data
 			pcapData.Reset()
 			w = pcapgo.NewWriter(&pcapData)
-			err = w.WriteFileHeader(uint32(*snaplen), layers.LinkTypeEthernet) // new pcap, must do this
+			// new pcap, must write headers with snaplen
+			err = w.WriteFileHeader(uint32(*snaplen), layers.LinkTypeEthernet)
 			if err != nil {
 				log.Fatalf("failed to write pcap header (%s)", err)
 			}
