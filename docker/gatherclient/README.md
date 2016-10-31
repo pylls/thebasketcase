@@ -1,7 +1,5 @@
 # build basket2
-- go get git.schwanenlied.me/yawning/basket2.git/basket2proxy
-- if you plan to do large-scale collection, consider modifying
-handshake/replayfilter.go to increase the size of the replay filter. 
+- go get github.com/pylls/basket2proxy
 
 # build a custom tor:
 - use a debian:jessie system (TODO: make easy docker for build)
@@ -25,24 +23,58 @@ handshake/replayfilter.go to increase the size of the replay filter.
 # download a fresh Tor Browser:
 - https://www.torproject.org/download/download-easy.html.en
 - edit Browser/TorBrowser/Data/Browser/profile.default/preferences/extension-overrides.js
+
+# update urls (point all to localhost)
+user_pref("extensions.update.background.url", "localhost");
+user_pref("extensions.update.url", "localhost");
+user_pref("xpinstall.signatures.devInfoURL", "localhost");
+user_pref("browser.aboutHomeSnippets.updateUrl", "localhost");
+user_pref("noscript.subscription.trustedURL", "localhost");
+user_pref("noscript.subscription.untrustedURL", "localhost");
+user_pref("extensions.torbutton.test_url", "localhost");
+user_pref("extensions.torbutton.test_url_interactive", "localhost");
+user_pref("extensions.torbutton.versioncheck_url", "localhost");
+
+# update timers (move far into the future)
+user_pref("app.update.lastUpdateTime.xpi-signature-verification", "2476106725");
+user_pref("app.update.lastUpdateTime.search-engine-update-timer", "2476106725");
+user_pref("app.update.lastUpdateTime.experiments-update-timer", "2476106725");
+user_pref("app.update.lastUpdateTime.browser-cleanup-thumbnails", "2476106725");
+user_pref("app.update.lastUpdateTime.background-update-timer", "2476106725");
+user_pref("app.update.lastUpdateTime.addon-background-update-timer", "2476106725");
+user_pref("idle.lastDailyNotification", "2476106725");
+user_pref("app.update.timerMinimumDelay", 31536000);
+user_pref("datareporting.healthreport.nextDataSubmissionTime", "2476194415800");
+user_pref("datareporting.policy.firstRunTime", "2476194415800");
+user_pref("noscript.subscription.lastCheck", "2476106725");
+user_pref("extensions.torbutton.lastUpdateCheck", "2476106725");
+user_pref("app.update.lastUpdateTime.blocklist-background-update-timer", "2476106725");
+
+# disable updates
+user_pref("extensions.blocklist.enabled", false);
+user_pref("browser.safebrowsing.downloads.remote.enabled", false);
+user_pref("app.update.auto", false);
 user_pref("app.update.enabled", false);
 user_pref("extensions.torlauncher.prompt_at_startup", false);
-user_pref("datareporting.healthreport.nextDataSubmissionTime", "1859373924100");
-user_pref("datareporting.policy.firstRunTime", "1859287524100");
-user_pref("extensions.torbutton.lastUpdateCheck", "1859287542.7");
+user_pref("extensions.torbutton.no_updates", true);
 user_pref("extensions.torbutton.show_slider_notification", false);
 user_pref("extensions.torbutton.updateNeeded", false);
-user_pref("extensions.torbutton.versioncheck_url", "");
 user_pref("extensions.torbutton.versioncheck_enabled", false);
 
 - in Browser/TorBrowser, put the modified tor from before
 - copy basket2proxy to Browser/TorBrowser/Tor/PluggableTransports
 - edit Browser/TorBrowser/Data/Tor/torrc, the basket2 settings below depend on
 where you run your basket2 server (see docker/basket2 to run your own).
+
 LogTimeGranularity 1
 UseBridges 1
-Bridge basket2 192.168.60.184:11111 5DD80B4AC2F718F1D8CACDAD1FD88644950A52B6 basket2params=0:0001:QiNZ5eqnrzPOXv4NyQ3Og5UntIpClPX6GC4c4Cq/I0Y
+UseMicrodescriptors 1
+Bridge basket2 192.168.60.184:11111 3A134BEE92330CBEE3DAED5AC289426E159A13B8 basket2params=0:0001:2Hki+jhzsNwuGnVl28bynFpkgHHdDzT6VkA78tTXdUs
 ClientTransportPlugin basket2 exec ./TorBrowser/Tor/PluggableTransports/basket2proxy -enableLogging=true -logLevel DEBUG -paddingMethods Null
+
+- modify  Browser/TorBrowser/Data/Browser/profile.default/extensions/https-everywhere-eff@eff.org/components/ssl-observatory.js and comment out line 405:
+if (topic == "browser-delayed-startup-finished") {
+  //this.testProxySettings();
+}
+
 - start TB once to verify the bridge settings
-- start TB just before you start collection with docker containers to cache
-a fresh copy of the consensus

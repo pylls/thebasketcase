@@ -1,6 +1,9 @@
+# build basket2
+- go get github.com/pylls/basket2proxy
+
+# create and run docker container
 cd into this dir
 docker build -t pulls/basket2bridge .
-
 
 docker run -p <IP>:11111:11111 -i -t pulls/basket2bridge bash
 root@d07b96f4057c:/# service tor start
@@ -23,5 +26,8 @@ root@85252b2e7a49:/var/lib/tor# cat pt_state/basket2_bridgeline.txt
 
 Bridge basket2 <IP ADDRESS>:<PORT> <FINGERPRINT> basket2params=0:0001:QiNZ5eqnrzPOXv4NyQ3Og5UntIpClPX6GC4c4Cq/I0Y
 
+# example line for torrc by TB
+Assuming the server with docker has IP 192.168.60.184, and the fingerprint
+and basket2_bridgeline from above:
 
 Bridge basket2 192.168.60.184:11111 5DD80B4AC2F718F1D8CACDAD1FD88644950A52B6 basket2params=0:0001:QiNZ5eqnrzPOXv4NyQ3Og5UntIpClPX6GC4c4Cq/I0Y
