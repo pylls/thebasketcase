@@ -6,13 +6,13 @@ package main
 import (
 	"encoding/csv"
 	"flag"
-	"fmt"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"net"
 	"net/url"
 	"os"
-	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,7 +22,8 @@ import (
 )
 
 const (
-	port = ":55555"
+	port       = ":55555"
+	modeString = "{{.Mode}}"
 )
 
 type item struct {
@@ -31,26 +32,42 @@ type item struct {
 }
 
 var (
-	timeout = flag.Int("t", 60, "the timeout (seconds) for collecting a sample")
-	samples = flag.Int("s", 1, "the number of samples to get for each site")
-	datadir = flag.String("f", "data", "the folder to store results in")
-	scheme  = flag.String("scheme", "http",
+	timeout = flag.Int("timeout", 60,
+		"the timeout (s) for collecting a sample")
+	monitored = flag.Int("monitored", 10, "the number of monitored sites")
+	samples   = flag.Int("samples", 1,
+		"the number of samples to get for each site")
+	unmonitored = flag.Int("unmonitored", 10, "the number of unmonitored sites")
+	datadir     = flag.String("f", "data", "the folder to store results in")
+	scheme      = flag.String("scheme", "http",
 		"the scheme for sites where not specified")
-	minDataLen = flag.Int("m", 100,
-		"the minimum number of bytes to accept as data from a client")
-	outputSuffix = flag.String("o", ".pcap", "the suffix for the output files")
+	minDataLen = flag.Int("min", 100,
+		"the minimum number of bytes to accept as pcap data from a client")
+	getTorLog = flag.Bool("getlog", false,
+		"also get the output of the tor stdout log")
+	modes = flag.String("modes",
+		"TamarawBulk,Tamaraw,Obfs4PacketIAT,Obfs4BurstIAT,Obfs4Burst,Null",
+		"the basket2 modes")
+	torrcLocation = flag.String("torrc", "torrc",
+		"the template for the Tor configuration file to be used by workers")
 
 	lock    sync.Mutex
 	work    chan item
 	workers map[string]string
-	done    int
+	sites   [][]string
+
+	done                       map[string]bool
+	batchID, activeMode, torrc string
+	torrcTemplate              []byte
 )
 
 func main() {
+	workers = make(map[string]string)
+
 	flag.Parse()
 	rand.Seed(time.Now().UnixNano()) // good enough
 	if len(flag.Args()) == 0 {
-		log.Fatal("need to specify file with pages as argument")
+		log.Fatal("need to specify file with sites as argument")
 	}
 
 	// make sure we can write to datadir
@@ -59,58 +76,42 @@ func main() {
 		log.Fatalf("failed to create datadir (%s)", err)
 	}
 
-	// read pages and validate as URLs
+	// read sites file, validating URLs
 	f, err := os.Open(flag.Arg(0))
 	if err != nil {
-		log.Fatalf("failed to read file with pages (%s)", err)
+		log.Fatalf("failed to read file with sites (%s)", err)
 	}
 	r := csv.NewReader(f)
-	pages, err := r.ReadAll()
+	sites, err = r.ReadAll()
 	if err != nil {
 		log.Fatal(err)
 	}
-	for i := 0; i < len(pages); i++ {
-		_, err = url.Parse(pages[i][1])
+	// validate sites
+	for i := 0; i < len(sites); i++ {
+		_, err = url.Parse(sites[i][1])
 		if err != nil {
-			log.Fatalf("failed to parse page as URL (%s)", err)
-		}
-	}
-	workers = make(map[string]string)
-	total := len(pages) * *samples
-
-	var w []item // create work items
-	for s := 0; s < *samples; s++ {
-		for i := 0; i < len(pages); i++ {
-			page, _ := url.Parse(pages[i][1])
-			if page.Scheme == "" {
-				page.Scheme = *scheme
-			}
-			id := pages[i][0] + "-" + strconv.Itoa(s)
-			if _, err = os.Stat(outputFileName(id)); os.IsNotExist(err) {
-				// only perform work if we have to
-				w = append(w, item{
-					ID:  id,
-					URL: page.String(),
-				})
-
-			} else {
-				done++
-			}
+			log.Fatalf("failed to parse site as URL (%s)", err)
 		}
 	}
 
-	// the work channel holds all work items and has a bigger capacity to
-	// prevent locks on restart of server and workers reporting in incomplete
-	// work that's put back into the work channel
-	work = make(chan item, total)
-	for _, i := range rand.Perm(len(w)) { // random order
-		work <- w[i]
+	// read torrc file
+	torrcTemplate, err = ioutil.ReadFile(*torrcLocation)
+	if err != nil {
+		log.Fatalf("failed to read torrc file (%s)", err)
+	}
+	if !strings.Contains(string(torrcTemplate), modeString) {
+		log.Fatalf("torrc fails missing mode string %s", modeString)
 	}
 
-	log.Printf("collecting %d sample(s) of %d sites over %s",
-		*samples, len(pages), *scheme)
-	log.Printf("%d seconds timeout and storing results in \"%s\"",
-		*timeout, *datadir)
+	// we can't validate modes further
+	if len(*modes) == 0 {
+		log.Fatalf("missing modes")
+	}
+
+	log.Printf("collecting %dx%d+%d dataset for modes %v",
+		*monitored, *samples, *unmonitored, *modes)
+	log.Printf("storing data in \"%s\", with %ds timeout, over %s",
+		*datadir, *timeout, *scheme)
 
 	lis, err := net.Listen("tcp", port)
 	if err != nil {
@@ -118,21 +119,7 @@ func main() {
 	}
 	log.Printf("listening on %s", lis.Addr())
 
-	// progress function
-	go func() {
-		for {
-			lock.Lock()
-			if done == total {
-				fmt.Println("")
-				log.Printf("finished")
-				os.Exit(0)
-			}
-			fmt.Printf("\r %8d done (%3.1f%%), %8d left to distribute (%3d workers)",
-				done, float64(done)/float64(total)*100, len(work), len(workers))
-			lock.Unlock()
-			time.Sleep(1 * time.Second)
-		}
-	}()
+	go driver() // do actual work
 
 	s := grpc.NewServer()
 	model.RegisterGatherServer(s, &server{})

@@ -3,19 +3,22 @@ syntax = "proto3";
 package model;
 
 service Gather {
-  rpc Work (Req) returns (Browse) {}
+  rpc Work (Report) returns (Browse) {}
 }
 
-message Req {
-  string WorkerID = 1;
-  Browse Browse = 2;
+message Report {
+  string WorkerID = 1; // self-reported identifier of the workerer
+  Browse Browse = 2; // the item of work reporting on
+  bytes Pcap = 3; // collected pcap data (empty on no work)
+  bytes Log = 4; // collected log from tor (optional)
 }
 
 // Browse is a work item.
-// If ID == "", then no work has been done (request) or is needed (reply).
 message Browse {
-  string ID = 1;
-  string URL = 2;
-  int64 Timeout = 3;
-  bytes Data = 4;
+  string ID = 1; // if "", then no work completed (request) or is needed (reply)
+  string BatchID = 2;
+  string URL = 3; // the url to browse to
+  string Torrc = 4; // the torrc file to use during browsing (in TB)
+  bool Log = 5; // true if the log should be reported
+  int64 Timeout = 6; // the number of seconds to sleep on no work
 }

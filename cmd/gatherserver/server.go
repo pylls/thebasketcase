@@ -1,10 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"log"
-	"strings"
-
 	"github.com/pylls/thebasketcase/model"
 	"golang.org/x/net/context"
 )
@@ -12,7 +8,7 @@ import (
 type server struct{}
 
 func (s *server) Work(c context.Context,
-	in *model.Req) (out *model.Browse, err error) {
+	in *model.Report) (out *model.Browse, err error) {
 	lock.Lock() // ugly, but good enough
 	defer lock.Unlock()
 
@@ -20,44 +16,19 @@ func (s *server) Work(c context.Context,
 	_, exists := workers[in.WorkerID]
 	if !exists {
 		workers[in.WorkerID] = in.WorkerID
-		fmt.Println("")
-		log.Printf("worker reporting for work: %s\n", in.WorkerID)
 	}
 
-	if in.Browse.ID != "" { // completed work?
-		if len(in.Browse.Data) >= *minDataLen {
-			err = store(in.Browse)
-			if err != nil {
-				work <- item{ // put work back in
-					ID:  in.Browse.ID,
-					URL: in.Browse.URL,
-				}
-				return
-			}
-
-		} else { // too little data, put back
-			// put back work, toggling "www.": this helps us to reach
-			// sites that for some reason only is accessible with/without www,
-			// like www.googleusercontent.com listed as googleusercontent.com
-			// in Alexa top-1m.
-			url := in.Browse.URL
-			if strings.Contains(url, "www.") {
-				url = strings.Replace(url, "www.", "", 1)
-			} else {
-				url = strings.Replace(url, "://", "://www.", 1)
-			}
-
-			work <- item{ // this overwrites what we have
-				ID:  in.Browse.ID,
-				URL: url,
-			}
+	if in.Browse.ID != "" && in.Browse.BatchID == batchID && // work in batch?
+		len(in.Pcap) >= *minDataLen { // and did we get enough data to be happy?
+		err = store(in) // OK, store completed work
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	if len(work) == 0 {
-		// no work right now
+	if len(work) == 0 { // no work right now
 		return &model.Browse{
-			ID:      "",
+			ID:      "", // empty ID -> sleep for timeout seconds
 			Timeout: int64(*timeout),
 		}, nil
 	}
@@ -65,8 +36,10 @@ func (s *server) Work(c context.Context,
 	i := <-work
 	return &model.Browse{
 		ID:      i.ID,
+		BatchID: batchID,
 		URL:     i.URL,
+		Torrc:   torrc,
+		Log:     *getTorLog,
 		Timeout: int64(*timeout),
 	}, nil
-
 }
