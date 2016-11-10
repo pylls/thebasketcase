@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/url"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -13,20 +14,26 @@ import (
 
 func driver() {
 	// randomize order once to use same order for all modes
-	unmonitoredPerm := rand.Perm(*unmonitored)
+	unmonitoredPerm := rand.Perm(len(sites))
 
-	m := strings.Split(*modes, ",")
+	m := strings.Split(*methods, ",")
 	for i := 0; i < len(m); i++ {
-		activeMode = m[i]
-		torrc = strings.Replace(string(torrcTemplate), modeString, activeMode, -1)
-		log.Printf("collecting for mode %s", activeMode)
-		log.Println("monitored:")
+		activeMethod = m[i] // set new method and create torrc config
+		torrc = strings.Replace(string(torrcTemplate),
+			methodString, activeMethod, -1)
+		err := os.MkdirAll(path.Join(*datadir, activeMethod), 0700)
+		if err != nil {
+			log.Fatalf("failed to create datadir for method (%s)", err)
+		}
+
+		log.Printf("collecting for method %s (%d/%d)", activeMethod, i+1, len(m))
+		log.Println(" -monitored:")
 		collectMonitored()
 
-		log.Println("unmonitored:")
+		log.Println(" -unmonitored:")
 		collectUnmonitored(unmonitoredPerm)
 	}
-	fmt.Println("")
+
 	log.Printf("finished")
 	os.Exit(0)
 }
@@ -47,19 +54,21 @@ func collectMonitored() {
 			}
 		}
 	}
+	lock.Unlock()
 	log.Printf("\tfound %d samples on disk", len(done))
+	log.Println("\tstarting to collect:")
 
 	for { // loop until we got all samples
-		log.Println("\tdetermining remaining work, potentially flipping URLs")
+		lock.Lock()
 		var w []item
 		for i := 0; i < *monitored; i++ {
 			for sample := 0; sample < *samples; sample++ {
-				page, _ := url.Parse(sites[i][1]) // make proper URL
-				if page.Scheme == "" {
-					page.Scheme = *scheme
-				}
 				id := sites[i][0] + "-" + strconv.Itoa(sample)
 				if _, exists := done[id]; !exists { // add if not done
+					page, _ := url.Parse(sites[i][1]) // make proper URL
+					if page.Scheme == "" {
+						page.Scheme = *scheme
+					}
 					w = append(w, item{
 						ID:  id,
 						URL: flipurl(page.String(), flip),
@@ -73,7 +82,6 @@ func collectMonitored() {
 		}
 		lock.Unlock()
 
-		log.Println("\tstarting to collect:")
 		for { // OK, setup done: time to wait for collection
 			lock.Lock()
 			fmt.Printf("\r\t\t\t%d/%d done (%3.1f%%), %d workers",
@@ -81,13 +89,12 @@ func collectMonitored() {
 				float64(len(done))/float64(*monitored**samples)*100, len(workers))
 			lock.Unlock()
 
-			if len(work) == 0 {
-				fmt.Println("")
-				log.Println("attempted to collect all monitored sites, retrying")
-				break
-			}
 			if len(done) >= *monitored**samples { // are we done?
+				fmt.Println("")
 				return
+			}
+			if len(work) == 0 {
+				break
 			}
 			time.Sleep(1 * time.Second)
 		}
@@ -151,6 +158,7 @@ func collectUnmonitored(perm []int) {
 			log.Fatalf("out of work: this should never happen")
 		}
 		if len(done) >= *unmonitored { // are we done?
+			fmt.Println("")
 			return
 		}
 		time.Sleep(1 * time.Second)

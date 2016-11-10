@@ -26,11 +26,11 @@ func store(in *model.Report) (err error) {
 
 func outputFileName(id string) string {
 	// structure is datadir/<mode>/<files>
-	return path.Join(*datadir, activeMode, id)
+	return path.Join(*datadir, activeMethod, id)
 }
 
 func listFiles() []os.FileInfo {
-	files, err := ioutil.ReadDir(path.Join(*datadir, activeMode))
+	files, err := ioutil.ReadDir(path.Join(*datadir, activeMethod))
 	if err != nil {
 		log.Fatal(err)
 	}

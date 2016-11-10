@@ -16,6 +16,9 @@ import (
 
 func browseTB(url string, seconds int,
 	sampleChan chan bool) (pcap, torlog []byte, err error) {
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
 	for i := 0; i < *attempts; i++ { // because our xvfb+timeout+TB fails at times
 		err = nil
 		time.Sleep(1 * time.Second)
@@ -40,8 +43,8 @@ func browseTB(url string, seconds int,
 			strconv.Itoa(seconds),                              // seconds
 			path.Join(browser, "Browser", "start-tor-browser"), // Tor Browser
 			"--debug", redirectFile) // that visits a specific URL through redirect
-		var stdout bytes.Buffer
-		var stderr bytes.Buffer
+		stdout.Reset()
+		stderr.Reset()
 		tb.Stdout = &stdout
 		tb.Stderr = &stderr
 
@@ -70,7 +73,8 @@ func browseTB(url string, seconds int,
 		return pcapData.Bytes(), stdout.Bytes(), nil
 	}
 
-	return nil, nil, fmt.Errorf("failed to browse after %d attempts", *attempts)
+	return nil, nil, fmt.Errorf("failed to browse after %d attempts (%s) (%s)",
+		*attempts, stdout.Bytes(), stderr.Bytes())
 }
 
 func warmup(sampleChan chan bool) {

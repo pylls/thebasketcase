@@ -22,8 +22,8 @@ import (
 )
 
 const (
-	port       = ":55555"
-	modeString = "{{.Mode}}"
+	port         = ":55555"
+	methodString = "{{.Method}}"
 )
 
 type item struct {
@@ -45,9 +45,9 @@ var (
 		"the minimum number of bytes to accept as pcap data from a client")
 	getTorLog = flag.Bool("getlog", false,
 		"also get the output of the tor stdout log")
-	modes = flag.String("modes",
+	methods = flag.String("methods",
 		"TamarawBulk,Tamaraw,Obfs4PacketIAT,Obfs4BurstIAT,Obfs4Burst,Null",
-		"the basket2 modes")
+		"the basket2 methods")
 	torrcLocation = flag.String("torrc", "torrc",
 		"the template for the Tor configuration file to be used by workers")
 
@@ -56,9 +56,9 @@ var (
 	workers map[string]string
 	sites   [][]string
 
-	done                       map[string]bool
-	batchID, activeMode, torrc string
-	torrcTemplate              []byte
+	done                         map[string]bool
+	batchID, activeMethod, torrc string
+	torrcTemplate                []byte
 )
 
 func main() {
@@ -99,17 +99,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to read torrc file (%s)", err)
 	}
-	if !strings.Contains(string(torrcTemplate), modeString) {
-		log.Fatalf("torrc fails missing mode string %s", modeString)
+	if !strings.Contains(string(torrcTemplate), methodString) {
+		log.Fatalf("torrc fails missing method string %s", methodString)
 	}
 
-	// we can't validate modes further
-	if len(*modes) == 0 {
-		log.Fatalf("missing modes")
+	// we can't validate methods further
+	if len(*methods) == 0 {
+		log.Fatalf("missing methods string")
 	}
 
-	log.Printf("collecting %dx%d+%d dataset for modes %v",
-		*monitored, *samples, *unmonitored, *modes)
+	log.Printf("collecting %dx%d+%d dataset for methods %v",
+		*monitored, *samples, *unmonitored, *methods)
 	log.Printf("storing data in \"%s\", with %ds timeout, over %s",
 		*datadir, *timeout, *scheme)
 

@@ -36,7 +36,8 @@ var (
 	browser        = path.Join(tmpDir, "browser")
 	dataBrowserDir = "Browser/TorBrowser/Data/Browser"
 	dataTorDir     = "Browser/TorBrowser/Data/Tor"
-	okTorData      = []string{"geoip",
+	okTorData      = []string{"torrc-defaults",
+		"geoip",
 		"cached-descript",
 		"cached-microdesc",
 		"cached-certs"}
@@ -117,12 +118,13 @@ func work(client model.GatherClient, identity string,
 	var lastWarmup time.Time
 	for {
 		// report and get work
-		report.Browse, err = client.Work(context.Background(), report)
+		do, err := client.Work(context.Background(), report)
 		if err != nil {
 			log.Printf("failed to work (%s)", err)
 			time.Sleep(10 * time.Second) // prevent spamming to connect
 			continue
 		}
+		report.Browse = do // ugly, but needed
 		torrc = report.Browse.Torrc
 		report.Log = nil
 		report.Pcap = nil

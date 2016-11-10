@@ -18,12 +18,14 @@ func (s *server) Work(c context.Context,
 		workers[in.WorkerID] = in.WorkerID
 	}
 
-	if in.Browse.ID != "" && in.Browse.BatchID == batchID && // work in batch?
-		len(in.Pcap) >= *minDataLen { // and did we get enough data to be happy?
+	if in.Browse != nil && in.Browse.ID != "" && in.Browse.BatchID == batchID &&
+		len(in.Pcap) >= *minDataLen { // in batch and enough data to be happy?
 		err = store(in) // OK, store completed work
 		if err != nil {
 			return nil, err
 		}
+
+		done[in.Browse.ID] = true
 	}
 
 	if len(work) == 0 { // no work right now
