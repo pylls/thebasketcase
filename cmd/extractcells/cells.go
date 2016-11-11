@@ -44,6 +44,12 @@ func main() {
 		log.Fatalf("failed to read pcap dir (%s)", err)
 	}
 
+	for i := 0; i < len(files); i++ {
+		if files[i].IsDir() {
+
+		}
+	}
+
 	work := make(chan string)
 	wg := new(sync.WaitGroup)
 	wg.Add(runtime.NumCPU() * *workerFactor)
@@ -55,6 +61,24 @@ func main() {
 		runtime.NumCPU()**workerFactor)
 	extracted := 0
 	for i := 0; i < len(files); i++ {
+		if files[i].IsDir() { // support one level of sub-folders
+			subfiles, err := ioutil.ReadDir(path.Join(flag.Arg(0), files[i].Name()))
+			if err != nil {
+				log.Fatalf("failed to read pcap subdir (%s)", err)
+			}
+			err = os.MkdirAll(path.Join(*output, files[i].Name()), 0700)
+			if err != nil {
+				log.Fatalf("failed to create subdir to store output in (%s)", err)
+			}
+			for _, f := range subfiles {
+				if !f.IsDir() && strings.HasSuffix(f.Name(), ".pcap") {
+					fmt.Printf("\rextracted %d", extracted)
+					work <- path.Join(files[i].Name(), f.Name())
+					extracted++
+				}
+			}
+		}
+
 		if !files[i].IsDir() && strings.HasSuffix(files[i].Name(), ".pcap") {
 			fmt.Printf("\rextracted %d", extracted)
 			work <- files[i].Name()

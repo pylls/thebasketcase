@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y \
 	xz-utils \
   	xauth \
 	psmisc \
+	file \
 	--no-install-recommends
 
 COPY dumb-init*.deb /

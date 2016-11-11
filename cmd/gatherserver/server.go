@@ -18,9 +18,15 @@ func (s *server) Work(c context.Context,
 		workers[in.WorkerID] = in.WorkerID
 	}
 
+	// store the data if:
+	// the worker is reporting work (ID not empty),
+	// the work is in the active batch,
+	// we collected enough data, and
+	// we're sure we haven't collected enough data already
 	if in.Browse != nil && in.Browse.ID != "" && in.Browse.BatchID == batchID &&
-		len(in.Pcap) >= *minDataLen { // in batch and enough data to be happy?
-		err = store(in) // OK, store completed work
+		len(in.Pcap) >= *minDataLen &&
+		(len(done) < *monitored**samples || len(done) < *unmonitored) {
+		err = store(in)
 		if err != nil {
 			return nil, err
 		}
