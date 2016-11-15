@@ -33,7 +33,7 @@ func getMin(f []float64) (val float64, index int) {
 	return
 }
 
-func readFeatures() (feat, openfeat [][]float64) {
+func readFeatures(root string) (feat, openfeat [][]float64) {
 	// flag all sites we read
 	done := make(map[int]bool)
 
@@ -42,14 +42,14 @@ func readFeatures() (feat, openfeat [][]float64) {
 		site := *roffset + i + 1
 		for j := 0; j < *instances; j++ {
 			feat = append(feat,
-				read(path.Join(*mfolder, strconv.Itoa(site)+"-"+strconv.Itoa(j)+FeatureSuffix)))
+				read(path.Join(root, strconv.Itoa(site)+"-"+strconv.Itoa(j)+FeatureSuffix)))
 		}
 		done[site] = true
 	}
 
 	// open sites, attempt to read *unmonitored number of sites from the
 	// folder that we didn't already read
-	files, err := ioutil.ReadDir(*ofolder)
+	files, err := ioutil.ReadDir(root)
 	if err != nil {
 		log.Fatalf("failed to read unmonitored folder (%s)", err)
 	}
@@ -67,7 +67,7 @@ func readFeatures() (feat, openfeat [][]float64) {
 		_, taken := done[s]
 		if !taken {
 			openfeat = append(openfeat,
-				read(path.Join(*ofolder, files[i].Name())))
+				read(path.Join(root, files[i].Name())))
 			done[s] = true
 		}
 		if len(done) >= *sites+*open {

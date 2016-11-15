@@ -121,7 +121,7 @@ func accuracy(data []metrics) float64 {
 	return p / float64(len(data))
 }
 
-func writeResults(results, name string) {
+func writeFile(results, name string) {
 	err := ioutil.WriteFile(name, []byte(results), 0666)
 	if err != nil {
 		log.Fatalf("failed to write %s (%s)", name, err)
@@ -145,23 +145,26 @@ func getMaxOccurance(values []int) (value, count int) {
 	return
 }
 
-func writeTorpctCSV(metric func(data []metrics) float64,
+func generateCSV(metric func(data []metrics) float64,
 	location string,
-	results map[string][]metrics, // map["attack"] -> [folds]metrics
-	attacks []string) {
+	results []map[string][]metrics, // work -> map["attack"] -> [folds]metrics
+	attacks, subfolds []string) {
 
 	// headers
-	output := "pct"
+	output := "work"
 	for i := 0; i < len(attacks); i++ {
 		output += "," + attacks[i]
 	}
 	output += "\n"
 
 	// content
-	for i := 0; i < len(attacks); i++ {
-		output += fmt.Sprintf(",%.3f", metric(results[attacks[i]]))
+	for i := 0; i < len(results); i++ {
+		output += fmt.Sprintf("%s", subfolds[i])
+		for j := 0; j < len(attacks); j++ {
+			output += fmt.Sprintf(",%.3f", metric(results[i][attacks[j]]))
+		}
+		output += "\n"
 	}
-	output += "\n"
 
-	writeResults(output, location)
+	writeFile(output, location)
 }
