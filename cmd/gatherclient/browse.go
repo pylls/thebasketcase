@@ -40,7 +40,7 @@ func browseTB(url string, seconds int,
 
 		tb := exec.Command("xvfb-run", "-s", *display, // in a xvfb display,
 			"timeout", "-s", "9", // kill (no need to play nice) after
-			strconv.Itoa(seconds),                              // seconds
+			strconv.Itoa(seconds+redirectDelay),                // seconds
 			path.Join(browser, "Browser", "start-tor-browser"), // Tor Browser
 			"--debug", redirectFile) // that visits a specific URL through redirect
 		stdout.Reset()
