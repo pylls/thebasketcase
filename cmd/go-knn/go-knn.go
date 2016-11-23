@@ -4,6 +4,7 @@ Package main implements ....
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -91,8 +92,10 @@ func main() {
 	sort.Strings(subfold) // for deterministic output
 	log.Printf("found %d folder(s) with work", len(subfold))
 
-	// results is map["attack"] -> [folds]metrics
+	// results is work -> map["attack"] -> [folds]metrics
 	results := make([]map[string][]metrics, len(subfold))
+	// allWeights is work -> fold -> features -> weight
+	allWeights := make([][][]float64, len(subfold))
 	for sub := 0; sub < len(subfold); sub++ {
 		results[sub] = make(map[string][]metrics)
 		log.Printf("starting with work %s", subfold[sub])
@@ -112,7 +115,7 @@ func main() {
 
 		testPerFold := (*sites**instances + *open) / *folds
 
-		// calculate global weights for kNN in parallel (they don't change per fold)
+		// calculate global weights for kNN in parallel (they don't change in folds)
 		globalWeights := make([][]float64, *folds)
 		wg := new(sync.WaitGroup)
 		for fold := 0; fold < *folds; fold++ {
@@ -165,7 +168,7 @@ func main() {
 			wg.Wait()
 			close(workerOut)
 
-			// save results
+			// save fold results
 			for res := range workerOut {
 				for attack, m := range res {
 					_, exists := results[sub][attack]
@@ -176,9 +179,12 @@ func main() {
 				}
 			}
 		}
+		// save weights for all folds
+		allWeights[sub] = globalWeights
+
 	}
 
-	// results
+	// calculate results and store
 	output := make(map[string]string)
 	var attacks []string
 	for attack := range results[0] {
@@ -200,19 +206,7 @@ func main() {
 		}
 	}
 
-	fout := fmt.Sprintf("%s: wfdns for %dx%d+%d\n\n",
-		time.Now().String(), *sites, *instances, *open)
-	for i := 0; i < len(attacks); i++ {
-		log.Printf("%s attack", attacks[i])
-		fmt.Printf("%s\n", output[attacks[i]])
-
-		fout += fmt.Sprintf("%s attack\n%s\n", attacks[i], output[attacks[i]])
-	}
-
-	writeFile(fout,
-		fmt.Sprintf("%dx%d+%d.log",
-			*sites, *instances, *open))
-
+	// CSV files for recall and precision
 	generateCSV(recall,
 		fmt.Sprintf("%dx%d+%d-%s.csv",
 			*sites, *instances, *open, "recall"),
@@ -221,6 +215,38 @@ func main() {
 		fmt.Sprintf("%dx%d+%d-%s.csv",
 			*sites, *instances, *open, "precision"),
 		results, attacks, subfold)
+
+	// store a log to file of the complete run
+	flog := fmt.Sprintf("%s: wfdns for %dx%d+%d\n\n",
+		time.Now().String(), *sites, *instances, *open)
+	for i := 0; i < len(attacks); i++ {
+		log.Printf("%s attack", attacks[i])
+		fmt.Printf("%s\n", output[attacks[i]])
+
+		flog += fmt.Sprintf("%s attack\n%s\n", attacks[i], output[attacks[i]])
+	}
+	writeFile(flog,
+		fmt.Sprintf("%dx%d+%d.log",
+			*sites, *instances, *open))
+
+	// write weights file
+	wout := bytes.NewBufferString("work,fold") // ,f0,f1,....
+	for i := 0; i < len(allWeights[0][0]); i++ {
+		str2buf(fmt.Sprintf(",f%d", i+1), wout)
+	}
+	str2buf("\n", wout)
+	for i := 0; i < len(allWeights); i++ {
+		for j := 0; j < len(allWeights[i]); j++ {
+			str2buf(fmt.Sprintf("%s,%d", subfold[i], j), wout)
+			for k := 0; k < len(allWeights[i][j]); k++ {
+				str2buf(fmt.Sprintf(",%s",
+					strconv.FormatFloat(allWeights[i][j][k], 'f', -1, 64)), wout)
+			}
+			str2buf("\n", wout)
+		}
+	}
+	writeFile(wout.String(), fmt.Sprintf("%dx%d+%d.weights",
+		*sites, *instances, *open))
 }
 
 func test(i int, // test-specific

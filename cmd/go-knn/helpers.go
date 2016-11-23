@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -167,4 +168,11 @@ func generateCSV(metric func(data []metrics) float64,
 	}
 
 	writeFile(output, location)
+}
+
+func str2buf(s string, buf *bytes.Buffer) {
+	_, err := buf.WriteString(s)
+	if err != nil {
+		log.Fatalf("failed to write string (%s)", err)
+	}
 }
