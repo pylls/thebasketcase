@@ -36,9 +36,7 @@ const (
 )
 
 var (
-	// data to experiment on
-	datadir = flag.String("folder", "alexa1kx100+100k-feat/",
-		"root folder with cell traces in subfolders")
+	// datset
 	sites     = flag.Int("sites", 0, "number of sites")
 	instances = flag.Int("instances", 0, "number of instances")
 	open      = flag.Int("open", 0, "number of open-world sites")
@@ -58,6 +56,8 @@ var (
 	verboseOutput = flag.Bool("verbose", true, "print detailed result output")
 	quiet         = flag.Bool("quiet", false,
 		"don't print detailed progress (useful for not spamming docker log)")
+
+	datadir = ""
 )
 
 func main() {
@@ -68,6 +68,10 @@ func main() {
 		flag.Usage()
 		return
 	}
+	if len(flag.Args()) == 0 {
+		log.Fatal("need to specify data dir")
+	}
+	datadir = flag.Arg(0)
 
 	// can traces be split into k samples?
 	if *instances%*folds != 0 || *open%*folds != 0 {
@@ -77,7 +81,7 @@ func main() {
 
 	// find subfolders, do run for all of them, then print results
 	var subfold []string
-	files, err := ioutil.ReadDir(*datadir)
+	files, err := ioutil.ReadDir(datadir)
 	if err != nil {
 		log.Fatalf("failed to read data folder (%s)", err)
 	}
@@ -87,7 +91,7 @@ func main() {
 		}
 	}
 	if len(subfold) == 0 { // no subfolder, assume data folder is full of work
-		subfold = append(subfold, *datadir)
+		subfold = append(subfold, datadir)
 	}
 	sort.Strings(subfold) // for deterministic output
 	log.Printf("found %d folder(s) with work", len(subfold))
@@ -103,10 +107,10 @@ func main() {
 		// read cells from datadir
 		log.Println("\tattempting to read WF features...")
 		var feat, openfeat [][]float64
-		if subfold[sub] == *datadir && len(subfold) == 1 { // likely no subfolders
+		if subfold[sub] == datadir && len(subfold) == 1 { // likely no subfolders
 			feat, openfeat = readFeatures(subfold[sub])
 		} else { // need full path
-			feat, openfeat = readFeatures(path.Join(*datadir, subfold[sub]))
+			feat, openfeat = readFeatures(path.Join(datadir, subfold[sub]))
 		}
 
 		log.Printf("\tread %d sites with %d instances (in total %d)",
