@@ -69,7 +69,7 @@ where you run your basket2 server (see docker/basket2 to run your own).
 LogTimeGranularity 1
 UseBridges 1
 UseMicrodescriptors 1
-Bridge basket2 192.168.60.184:11111 3A134BEE92330CBEE3DAED5AC289426E159A13B8 basket2params=0:0001:2Hki+jhzsNwuGnVl28bynFpkgHHdDzT6VkA78tTXdUs
+Bridge basket2 192.168.60.163:11111 E6E0EF7165D4D2D1BAB64D901C66F077AAE57443 basket2params=0:0001:VNGwjMiZCARpZCADPh2okaRyzbkcwbxfbjz+oeVkxU8
 ClientTransportPlugin basket2 exec ./TorBrowser/Tor/PluggableTransports/basket2proxy -enableLogging=true -logLevel DEBUG -paddingMethods {{.Method}}
 
 - modify  Browser/TorBrowser/Data/Browser/profile.default/extensions/https-everywhere-eff@eff.org/components/ssl-observatory.js and comment out line 405:
